@@ -46,11 +46,11 @@ struct envelopeADSR{
   bool noteStatus;
 
   envelopeADSR(){
-    attackTime = 0.100;
-    decayTime = 0.01;
+    attackTime = 0.050;
+    decayTime = 0.05;
     attackAmp = 1.0;
-    sustainAmp = 0.8;
-    releaseTime = 0.200;
+    sustainAmp = 0.95;
+    releaseTime = 0.500;
     triggerOnTime = 0.0;
     triggerOffTime = 0.0;
     noteStatus = false;
@@ -99,6 +99,9 @@ struct envelopeADSR{
   void noteOff(float dTimeOff){
     triggerOffTime = dTimeOff;
     noteStatus = false;
+  }
+  bool getStatus(void){
+    return noteStatus;
   }
 };
 
@@ -166,30 +169,37 @@ unsigned int isr(void) {
 void loop()
 {
   puts("loop!!");
-  printf("Current clock = %d", curr_clock);
+  printf("\t\t\t\t\tCurrent clock = %d\n", curr_clock);
 
   note_1 = analogRead(soft_1);
   note_2 = analogRead(soft_2);
-  printf("softpot = %d, fsr = %d\n", note_1, vibrato_1);
+  printf("softpot_1 = %d, softpot_2 = %d\n", note_1, note_2);
   //Score::Note theNote = theScore.get();
   //if (theNote.fs == 0) {
     //puts("End,");
     //exit(1);
   //}
-  if(note_1 > 1000 or note_1 < 20){
-    note_1_on = 0;
+  curr_time = 0.000001*curr_clock;
+  if(note_2 > 1000 or note_2 < 20){
+    note_2_on = 0;
+    if(envelope.getStatus()){
+      envelope.noteOff(curr_time);
+    }
     //duration = 0;
   }
   else{
-    note_1_on = 1;
-    set_note = 150 + (450*note_1)/ADC_PREC;
+    note_2_on = 1;
+    if(!envelope.getStatus()){
+      envelope.noteOn(curr_time);
+    }
+    set_note = 150 + (450*note_2)/ADC_PREC;
     //duration += 1;
   }
 
-  curr_time = 0.01;
-  envelope.noteOn(curr_time);
+  
+  
   float outputAmp = -40*envelope.getAmp(curr_time);
-  theAudio->setBeep(note_1_on,outputAmp,set_note);
+  theAudio->setBeep(note_2_on,outputAmp,set_note);
   //usleep(theNote.time * 1000);
   //theAudio->setBeep(0,0,0);
   //usleep(1000);

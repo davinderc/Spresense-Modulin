@@ -18,28 +18,27 @@
  */
 #include <Audio.h>
 
-#define ADC_PREC 1024;
-
 AudioClass *theAudio;
 
 static const uint8_t soft_2 = PIN_A4;
 static const uint8_t soft_1 = PIN_A5;
 static const uint8_t fsr_1 = PIN_A3;
 
-int note_1 = 0;
-int note_2 = 0;
-int fsr_val = 0;
+int note_1 = 0; // for playing two notes from one ribbon controller
+int note_2 = 0; // currently active note
+int fsr_val = 0; // for adding vibrato from pressure sensor fsr
 int note_1_on = 0;
 int note_2_on = 0;
 int vibrato_1 = 0;
-float vibratoAmp = 1;
-float envelopeAmp = 1;
+float vibratoAmp = 1; // Need to uncomment below to add vibrato
+float envelopeAmp = 1; // ADSR envelope
 float set_note = 94; // Minimum value accepted by setBeep
-float curr_time = 0;
-unsigned int curr_clock = 0;
-float outputAmp = 0.0;
+unsigned int cycle = 25; // precision of interrupt clock
+unsigned int curr_clock = 0; // clock counter
+float outputAmp = 0.0; 
 
 float note_freqs[12]{
+  // Frequencies for notes (one octave)
   261.62,
   277.18,
   293.66,
@@ -167,9 +166,6 @@ struct envelopeADSR{
   }
 };
 
-unsigned int cycle = 25;
-int timerInt = 0;
-
 envelopeADSR envelope;
 vibrato vibratoInst;
 
@@ -181,18 +177,14 @@ void setup()
   theAudio->begin();
   puts("initialization Audio Library");
 
-  theAudio->setPlayerMode(AS_SETPLAYER_OUTPUTDEVICE_SPHP);
-
-  //theScore.init();
-   
+  theAudio->setPlayerMode(AS_SETPLAYER_OUTPUTDEVICE_SPHP); 
 }
 
 unsigned int isr(void) {
-  timerInt = 1;
   curr_clock += 25;
   return cycle;
 }
-
+// linearization of ribbon controller input
 float get_freq(int analog_val){
   if(analog_val > 980){
     return note_freqs[11];
@@ -235,11 +227,10 @@ float get_freq(int analog_val){
 
 void loop()
 {
-  //printf("\t\t\t\tCurrent clock = %d, v_amp %d\n", curr_clock, note_2);
   int prev_note2 = note_2;
   note_1 = analogRead(soft_1);
   note_2 = analogRead(soft_2);
-  fsr_val = analogRead(fsr_1);
+  //fsr_val = analogRead(fsr_1);
   
   if(note_2 > 1000 or note_2 < 1 or abs(note_2 - prev_note2) > 18){
     note_2_on = 0;

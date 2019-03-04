@@ -1,5 +1,5 @@
 /*
- *  beep.ino - beep example application
+ *  
  *  Copyright 2018 Sony Semiconductor Solutions Corporation
  *
  *  This library is free software; you can redistribute it and/or
@@ -59,100 +59,106 @@ float note_freqs[12]{
 struct vibrato{
   float vibStartTime;
   float freq;
-  bool noteStatus;
+  bool vibStatus;
 
   vibrato(){
     vibStartTime = 0;
     freq = 0;
-    noteStatus = false;
+    vibStatus = false;
   }
-  float vibAmp(float dTimeOn){
-    if(noteStatus){
-      return sin(62.8*dTimeOn);
+  float vibAmp(unsigned int dTimeOn){
+    if(vibStatus){
+      return (sin(62.8*dTimeOn) + 1)*40;
     }
     else{
       return 1;
     }
   }
   
-  void noteOn(float dTimeOn){
+  void noteOn(unsigned int dTimeOn){
     vibStartTime = dTimeOn;
-    noteStatus = true;
+    vibStatus = true;
   }
 
   void noteOff(){
     freq = 0;
-    noteStatus = false;
+    vibStatus = false;
+    
   }
   
-  bool getStatus(void){
-    return noteStatus;
+  bool getVibStatus(void){
+    return vibStatus;
   }
 };
 
 struct envelopeADSR{
-  float attackTime;
-  float decayTime;
+  unsigned int attackTime;
+  unsigned int decayTime;
   float attackAmp;
   float sustainAmp;
-  float releaseTime;
-  
-  float triggerOnTime;
-  float triggerOffTime;
+  unsigned int releaseTime;
+  unsigned int triggerOnTime;
+  unsigned int triggerOffTime;
   bool noteStatus;
 
   envelopeADSR(){
-    attackTime = 0.250;
-    decayTime = 0.5;
+    attackTime = 500000.0;
+    decayTime = 200000.0;
     attackAmp = -25;
-    sustainAmp = -37;
-    releaseTime = 0.500;
+    sustainAmp = -29;
+    releaseTime = 500000.0;
     triggerOnTime = 0.0;
     triggerOffTime = 0.0;
     noteStatus = false;
   }
 
-  float getAmp(float dTime){
+  float getAmp(unsigned int dTime){
     float amp = 0.0;
-    float lifeTime = dTime - triggerOnTime;
+    unsigned int lifeTime = dTime - triggerOnTime;
 
     if(noteStatus){
       // ADS
 
       // Attack
       if(lifeTime <= attackTime){
-        amp = (lifeTime/attackTime)*attackAmp;
+        amp = (attackAmp + 1) - (lifeTime/attackTime);
+        return amp;
       }
 
       // Decay
-      if(lifeTime > attackTime && lifeTime <= (attackTime + decayTime)){
-        amp = ((lifeTime - attackTime)/decayTime)*(sustainAmp - attackAmp) + attackAmp;
+      if((lifeTime > attackTime) && (lifeTime <= (attackTime + decayTime))){
+        amp = attackAmp - (sustainAmp - attackAmp)*((lifeTime - attackTime)/decayTime);
+        return amp;
       }
 
       // Sustain
       if(lifeTime > (attackTime + decayTime)){
         amp = sustainAmp;
+        return amp;
       }
     }
 
     else{
       // Release
-      amp = ((dTime - triggerOffTime)/releaseTime)*(0.0 - sustainAmp) + sustainAmp;
+      float release_decay = (dTime - triggerOffTime)/releaseTime;
+      amp = sustainAmp - release_decay + sustainAmp;
     }
 
-    if(amp <= 0.0001 && amp >= -0.0001){
-      amp = 0;
+    if(amp <= -45){
+      amp = -90;
     }
     
     return amp;
   }
   
-  void noteOn(float dTimeOn){
-    triggerOnTime = dTimeOn;
+  void noteOn(unsigned int dTimeOn){
+    if(!noteStatus){
+      triggerOnTime = dTimeOn;
+    }
     noteStatus = true;
   }
 
-  void noteOff(float dTimeOff){
+  void noteOff(unsigned int dTimeOff){
     triggerOffTime = dTimeOff;
     noteStatus = false;
   }
@@ -229,34 +235,31 @@ float get_freq(int analog_val){
 
 void loop()
 {
-  puts("loop!!");
-  printf("\t\t\t\tCurrent clock = %d, amp %d\n", curr_clock, 100*vibratoAmp);
-
+  //printf("\t\t\t\tCurrent clock = %d, v_amp %d\n", curr_clock, note_2);
+  int prev_note2 = note_2;
   note_1 = analogRead(soft_1);
   note_2 = analogRead(soft_2);
   fsr_val = analogRead(fsr_1);
-  printf("envelopeAmp = %d\n", 100*envelopeAmp);
-  curr_time = 0.000001*curr_clock;
-  if(note_2 > 1000 or note_2 < 1){
+  
+  if(note_2 > 1000 or note_2 < 1 or abs(note_2 - prev_note2) > 18){
     note_2_on = 0;
     if(envelope.getStatus()){
-      envelope.noteOff(curr_time);
-      vibratoInst.noteOff();
+      envelope.noteOff(curr_clock);
+      //vibratoInst.noteOff();
     }
   }
   else{
     note_2_on = 1;
-    if(!envelope.getStatus()){
-      envelope.noteOn(curr_time);
-      vibratoInst.noteOn(curr_time);
-    }
     set_note = get_freq(note_2);
+    envelope.noteOn(curr_clock);
+    //vibratoInst.noteOn(curr_time);
+  
   }
 
   
-  vibratoAmp = vibratoInst.vibAmp(curr_time);
-  envelopeAmp = envelope.getAmp(curr_time);
-  outputAmp = vibratoAmp*envelopeAmp;
+  //vibratoAmp = vibratoInst.vibAmp(curr_time);
+  outputAmp = envelope.getAmp(curr_clock);
+  //set_note = set_note*vibratoAmp;
 
   theAudio->setBeep(note_2_on,outputAmp,set_note);
 }
